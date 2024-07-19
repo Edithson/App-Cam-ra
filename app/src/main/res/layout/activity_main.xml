@@ -13,13 +13,14 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:layout_marginBottom="70dp">
+        android:layout_marginBottom="80dp">
 
         <LinearLayout
             android:id="@+id/linear_layout"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:layout_marginBottom="0dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -28,37 +29,37 @@
 
                 <Button
                     android:id="@+id/button1"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/slow"
                     style="@style/MyTheme"
-                    android:layout_marginLeft="155dp"/>
+                    android:layout_width="120dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="250dp"
+                    android:layout_weight="1"
+                    android:text="@string/slow" />
 
                 <Button
                     android:id="@+id/button2"
-                    android:layout_width="wrap_content"
+                    style="@style/MyTheme"
+                    android:layout_width="75dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/portrait"
-                    style="@style/MyTheme"/>
+                    android:text="@string/portrait" />
 
                 <Button
                     android:id="@+id/button3"
-                    android:layout_width="wrap_content"
+                    style="@style/MyTheme"
+                    android:layout_width="75dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/photo"
-                    style="@style/MyTheme"/>
+                    android:text="@string/photo" />
 
                 <Button
                     android:id="@+id/button4"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/video"
                     style="@style/MyTheme"
-                    android:layout_marginRight="155dp"/>
+                    android:layout_width="75dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginRight="250dp"
+                    android:layout_weight="1"
+                    android:text="@string/video" />
             </LinearLayout>
         </LinearLayout>
     </HorizontalScrollView>
@@ -87,7 +88,7 @@
             android:layout_height="70dp"
             android:layout_gravity="center"
             android:visibility="gone"
-            app:srcCompat="@android:drawable/radiobutton_off_background" />
+            app:srcCompat="@drawable/btn_picture" />
 
         <ImageView
             android:id="@+id/end_recorder"
@@ -245,7 +246,7 @@
                 android:id="@+id/texture"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_marginBottom="120dp"
+                android:layout_marginBottom="160dp"
                 android:layout_marginTop="70dp" />
 
             <ImageView
@@ -276,4 +277,13 @@
             android:visibility="invisible" />
     </RelativeLayout>
 
+    <TextView
+        android:id="@+id/timer_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="48sp"
+        android:textColor="@color/white"
+        android:layout_centerInParent="true"
+        android:visibility="gone"
+        android:text="10" />
 </RelativeLayout>

@@ -13,11 +13,17 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.icu.text.SimpleDateFormat;
+import android.media.Image;
+import android.media.ImageReader;
 import android.net.Uri;
 
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CountDownTimer;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.provider.Settings;
@@ -31,6 +37,7 @@ import android.view.TextureView;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -38,6 +45,10 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import android.Manifest;
@@ -54,6 +65,10 @@ import android.widget.LinearLayout;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -73,18 +88,18 @@ public class MainActivity extends AppCompatActivity {
     private CaptureRequest.Builder captureRequestBuilder;
     private Size imageDimension = new Size(1080, 1440); // Default 3:4
 
-
+    private Button flashButton, switwhCmrBtn;
     public enum FlashMode {
         OFF,
         ON,
         AUTO
     }
-
     private FlashMode flashMode = FlashMode.OFF;
 
     //variables de vue
 
     private static final String TAG = "MainActivity";
+    private TextView timerText;
 
     private Handler backgroundHandler;
     private HandlerThread backgroundThread;
@@ -208,6 +223,8 @@ public class MainActivity extends AppCompatActivity {
 
         startCamera();
 
+        timerText = findViewById(R.id.timer_text);
+
         //bouton d'action
         start_recorder = findViewById(R.id.start_recorder);
         end_recorder = findViewById(R.id.end_recorder);
@@ -260,6 +277,7 @@ public class MainActivity extends AppCompatActivity {
                 showHideMenu(menu_flash);
                 switchIcon(flash_off, flash);
                 mode_flash = 0;
+                flashMode = FlashMode.OFF;
             }
         });
         flash_on.setOnClickListener(new View.OnClickListener() {
@@ -268,6 +286,7 @@ public class MainActivity extends AppCompatActivity {
                 showHideMenu(menu_flash);
                 switchIcon(flash_on, flash);
                 mode_flash = 1;
+                flashMode = FlashMode.ON;
             }
         });
         flash_auto.setOnClickListener(new View.OnClickListener() {
@@ -276,6 +295,7 @@ public class MainActivity extends AppCompatActivity {
                 showHideMenu(menu_flash);
                 switchIcon(flash_auto, flash);
                 mode_flash = 2;
+                flashMode = FlashMode.AUTO;
             }
         });
         minuteur.setOnClickListener(new View.OnClickListener() {
@@ -403,7 +423,26 @@ public class MainActivity extends AppCompatActivity {
         });
         image_capture.setOnClickListener(v -> {
             //methode de prise de photo
-            takePicture();
+            if (mode_min == 0){
+                takePicture();
+            }else {
+                timerText.setVisibility(View.VISIBLE);
+
+                new CountDownTimer(mode_min * 1000, 1000) {
+                    @Override
+                    public void onTick(long millisUntilFinished) {
+                        int secondsRemaining = (int) (millisUntilFinished / 1000);
+                        timerText.setText(String.valueOf(secondsRemaining+1));
+                    }
+
+                    @Override
+                    public void onFinish() {
+                        timerText.setVisibility(View.GONE);
+                        takePicture();
+                    }
+                }.start();
+            }
+
         });
 
         //changement de caméra
@@ -654,10 +693,109 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void takePicture() {
-        if (null == cameraDevice) {
+        if (cameraDevice == null) {
             return;
         }
-        // Implement picture capture logic here
+        CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraDevice.getId());
+            Size[] jpegSizes = null;
+            if (characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) != null) {
+                jpegSizes = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+                        .getOutputSizes(ImageFormat.JPEG);
+            }
+            int width = 640;
+            int height = 480;
+            if (jpegSizes != null && jpegSizes.length > 0) {
+                width = jpegSizes[0].getWidth();
+                height = jpegSizes[0].getHeight();
+            }
+            ImageReader reader = ImageReader.newInstance(width, height, ImageFormat.JPEG, 1);
+            List<Surface> outputSurfaces = new ArrayList<>(2);
+            outputSurfaces.add(reader.getSurface());
+            outputSurfaces.add(new Surface(textureView.getSurfaceTexture()));
+            final CaptureRequest.Builder captureBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+            captureBuilder.addTarget(reader.getSurface());
+            captureBuilder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO);
+
+            switch (flashMode) {
+                case ON:
+                    captureBuilder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_SINGLE);
+                    break;
+                case AUTO:
+                    captureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
+                    break;
+                case OFF:
+                default:
+                    captureBuilder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF);
+                    break;
+            }
+
+            // Orientation
+            int rotation = getWindowManager().getDefaultDisplay().getRotation();
+            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, 90);
+
+            /*ce code récupère la dernière image disponible, la convertit
+            en un tableau d'octets et l'enregistre dans un fichier avec un
+            nom unique dans le répertoire public des images de l'appareil.*/
+            final String fileName = generateFileName();
+            final File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), fileName);
+            ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
+                @Override
+                public void onImageAvailable(ImageReader reader) {
+                    Image image = null;
+                    try {
+                        image = reader.acquireLatestImage();
+                        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+                        byte[] bytes = new byte[buffer.capacity()];
+                        buffer.get(bytes);
+                        save(bytes, file);
+                    } finally {
+                        if (image != null) {
+                            image.close();
+                        }
+                    }
+                }
+
+                private void save(byte[] bytes, File file) {
+                    try (FileOutputStream output = new FileOutputStream(file)) {
+                        output.write(bytes);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+
+            /*Cela permet de gérer le processus de capture d'image,
+            du moment où l'image est disponible jusqu'à la création de
+            l'aperçu de la caméra.*/
+            reader.setOnImageAvailableListener(readerListener, null);
+            final CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
+                @Override
+                public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+                    super.onCaptureCompleted(session, request, result);
+                    startPreview();
+                }
+            };
+
+            /*Ceci permet d'afficher le flux vidéo de la caméra dans l'application.*/
+            cameraDevice.createCaptureSession(outputSurfaces, new CameraCaptureSession.StateCallback() {
+                @Override
+                public void onConfigured(@NonNull CameraCaptureSession session) {
+                    try {
+                        session.capture(captureBuilder.build(), captureListener, null);
+                    } catch (CameraAccessException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                @Override
+                public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                }
+            }, null);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -840,6 +978,13 @@ public class MainActivity extends AppCompatActivity {
 
         // Re-create the camera preview with the new size
         startPreview();
+    }
+
+    //génération des noms pour les photos
+    private String generateFileName() {
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String uuid = UUID.randomUUID().toString();
+        return "IMG_" + timestamp + "_" + uuid + ".jpg";
     }
 
     /*

@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">App Camera 2</string>
+    <string name="video">Vidéo</string>
+    <string name="photo">Photo</string>
+    <string name="portrait">Portrait</string>
+    <string name="slow">Slow motion</string>
+</resources>
